@@ -5,8 +5,10 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   setDoc,
   updateDoc,
+  where,
   writeBatch,
 } from 'firebase/firestore'
 import type { User } from 'firebase/auth'
@@ -18,7 +20,17 @@ import type { Game, Player } from './types'
 const gameRef = doc(db, 'games', GAME_ID)
 const playersCol = collection(db, 'games', GAME_ID, 'players')
 const killRequestsCol = collection(db, 'games', GAME_ID, 'killRequests')
+const gageRequestsCol = collection(db, 'games', GAME_ID, 'gageRequests')
 const playerRef = (uid: string) => doc(db, 'games', GAME_ID, 'players', uid)
+
+// Tire un gage au hasard dans la liste, en évitant si possible le gage actuel.
+export function pickRandomGage(gages: string[], current: string | null): string | null {
+  const pool = gages.filter(Boolean)
+  if (pool.length === 0) return current
+  const others = pool.filter((g) => g !== current)
+  const choices = others.length > 0 ? others : pool
+  return choices[Math.floor(Math.random() * choices.length)]
+}
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -122,9 +134,15 @@ export async function resetGame(players: Player[]): Promise<void> {
   batch.update(gameRef, { status: 'waiting', startedAt: null, winnerUid: null })
   await batch.commit()
 
-  // Purge des demandes de kill de la partie précédente.
-  const reqs = await getDocs(killRequestsCol)
-  await Promise.all(reqs.docs.map((d) => deleteDoc(d.ref)))
+  // Purge des demandes (kill + changement de gage) de la partie précédente.
+  const [killReqs, gageReqs] = await Promise.all([
+    getDocs(killRequestsCol),
+    getDocs(gageRequestsCol),
+  ])
+  await Promise.all([
+    ...killReqs.docs.map((d) => deleteDoc(d.ref)),
+    ...gageReqs.docs.map((d) => deleteDoc(d.ref)),
+  ])
 }
 
 // ---- Logique de résolution (pure) ------------------------------------------
@@ -252,6 +270,48 @@ export async function respondToKill(
   // Marque la demande comme confirmée puis applique la résolution.
   await updateDoc(reqRef, { status: 'confirmed' })
   await applyResolution(res)
+}
+
+// ---- Demande de changement de gage ------------------------------------------
+
+// Le joueur demande un autre gage (sa cible ne change pas). L'admin valide.
+export async function requestGageChange(player: Player): Promise<void> {
+  if (!player.alive) throw new Error('Action impossible.')
+  // Évite les doublons : une seule demande en attente par joueur.
+  const existing = await getDocs(
+    query(gageRequestsCol, where('playerUid', '==', player.uid), where('status', '==', 'pending'))
+  )
+  if (!existing.empty) return
+  await addDoc(gageRequestsCol, {
+    playerUid: player.uid,
+    playerName: player.name,
+    currentGage: player.gage,
+    newGage: null,
+    status: 'pending',
+    createdAt: Date.now(),
+  })
+}
+
+// L'admin approuve (tire un nouveau gage au hasard) ou refuse la demande.
+// La cible du joueur reste inchangée — seul son gage est remplacé.
+export async function resolveGageChange(
+  requestId: string,
+  playerUid: string,
+  currentGage: string | null,
+  accept: boolean
+): Promise<void> {
+  const reqRef = doc(gageRequestsCol, requestId)
+  if (!accept) {
+    await updateDoc(reqRef, { status: 'rejected' })
+    return
+  }
+  const gameSnap = await getDoc(gameRef)
+  const gages: string[] = (gameSnap.data()?.gages as string[]) || []
+  const newGage = pickRandomGage(gages, currentGage)
+  const batch = writeBatch(db)
+  batch.update(playerRef(playerUid), { gage: newGage })
+  batch.update(reqRef, { status: 'approved', newGage })
+  await batch.commit()
 }
 
 // `defender` accuse `suspectUid` d'être son chasseur.

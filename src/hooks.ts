@@ -3,11 +3,12 @@ import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebas
 import { collection, doc, onSnapshot, orderBy, query, where } from 'firebase/firestore'
 import { auth, db, googleProvider } from './firebase'
 import { ALLOWED_DOMAIN, GAME_ID, isAllowedEmail } from './config'
-import type { Game, KillRequest, Player } from './types'
+import type { Game, GageRequest, KillRequest, Player } from './types'
 
 const gameRef = doc(db, 'games', GAME_ID)
 const playersCol = collection(db, 'games', GAME_ID, 'players')
 const killRequestsCol = collection(db, 'games', GAME_ID, 'killRequests')
+const gageRequestsCol = collection(db, 'games', GAME_ID, 'gageRequests')
 
 export interface AuthState {
   user: User | null
@@ -110,5 +111,30 @@ export function useMyKillRequests(uid: string | undefined): KillRequest[] {
       setReqs(snap.docs.map((d) => ({ id: d.id, ...d.data() } as KillRequest)))
     })
   }, [uid])
+  return reqs
+}
+
+// Mes demandes de changement de gage (pour afficher l'état côté joueur).
+export function useMyGageRequests(uid: string | undefined): GageRequest[] {
+  const [reqs, setReqs] = useState<GageRequest[]>([])
+  useEffect(() => {
+    if (!uid) return
+    const q = query(gageRequestsCol, where('playerUid', '==', uid))
+    return onSnapshot(q, (snap) => {
+      setReqs(snap.docs.map((d) => ({ id: d.id, ...d.data() } as GageRequest)))
+    })
+  }, [uid])
+  return reqs
+}
+
+// Toutes les demandes de changement de gage en attente (vue admin).
+export function usePendingGageRequests(): GageRequest[] {
+  const [reqs, setReqs] = useState<GageRequest[]>([])
+  useEffect(() => {
+    const q = query(gageRequestsCol, where('status', '==', 'pending'))
+    return onSnapshot(q, (snap) => {
+      setReqs(snap.docs.map((d) => ({ id: d.id, ...d.data() } as GageRequest)))
+    })
+  }, [])
   return reqs
 }

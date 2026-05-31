@@ -32,6 +32,13 @@ service cloud.firestore {
       match /killRequests/{reqId} {
         allow read, write: if isOndorse();
       }
+
+      match /gageRequests/{reqId} {
+        allow read: if isOndorse();
+        allow create: if isOndorse();   // un joueur demande un changement de gage
+        allow update: if isAdmin();      // seul l'admin valide/refuse
+        allow delete: if isAdmin();      // purge à la réinitialisation
+      }
     }
   }
 }
