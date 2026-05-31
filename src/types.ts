@@ -34,3 +34,15 @@ export interface KillRequest {
   status: KillRequestStatus
   createdAt: number
 }
+
+export type GageRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface GageRequest {
+  id: string
+  playerUid: string
+  playerName: string
+  currentGage: string | null
+  newGage: string | null
+  status: GageRequestStatus
+  createdAt: number
+}
