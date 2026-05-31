@@ -1,0 +1,37 @@
+rules_version = '2';
+
+// Règles de sécurité Firestore pour Killer Ondorse.
+// Modèle de confiance : jeu interne entre collègues. On garantit l'essentiel
+// (seuls les emails @ondorse.co peuvent lire/écrire ; seul l'admin change l'état
+// du jeu et les gages), mais la résolution des kills se fait côté client, donc
+// chaque joueur peut écrire les docs joueurs (nécessaire pour la chaîne).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOndorse() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.matches('.*@ondorse[.]co$');
+    }
+
+    function isAdmin() {
+      return isOndorse() && request.auth.token.email == 'mohammad@ondorse.co';
+    }
+
+    match /games/{gameId} {
+      allow read: if isOndorse();
+      allow create: if isOndorse();         // création paresseuse du doc de jeu
+      allow update: if isAdmin();           // statut + gages : admin uniquement
+      allow delete: if false;
+
+      match /players/{uid} {
+        allow read: if isOndorse();
+        allow write: if isOndorse();        // résolution de la chaîne côté client
+      }
+
+      match /killRequests/{reqId} {
+        allow read, write: if isOndorse();
+      }
+    }
+  }
+}
