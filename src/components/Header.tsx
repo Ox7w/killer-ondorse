@@ -1,5 +1,6 @@
 import type { User } from 'firebase/auth'
 import type { Player } from '../types'
+import OndorseLogo from './OndorseLogo'
 
 export default function Header({
   user,
@@ -13,7 +14,7 @@ export default function Header({
   return (
     <header className="flex items-center justify-between py-4">
       <div className="flex items-center gap-2">
-        <span className="text-2xl">🔪</span>
+        <OndorseLogo className="h-7 w-auto text-brand" />
         <div>
           <h1 className="text-lg font-extrabold leading-none tracking-tight">
             Killer <span className="text-brand">Ondorse</span>

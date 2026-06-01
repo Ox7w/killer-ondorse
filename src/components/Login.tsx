@@ -1,4 +1,5 @@
 import { ALLOWED_DOMAIN } from '../config'
+import OndorseLogo from './OndorseLogo'
 
 export default function Login({
   onSignIn,
@@ -10,7 +11,7 @@ export default function Login({
   return (
     <div className="flex min-h-full items-center justify-center p-6">
       <div className="card w-full max-w-sm text-center">
-        <div className="mb-3 text-5xl">🔪</div>
+        <OndorseLogo className="mx-auto mb-3 h-14 w-auto text-brand" />
         <h1 className="text-2xl font-extrabold">
           Killer <span className="text-brand">Ondorse</span>
         </h1>
